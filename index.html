@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Mixing Tool</title>
+    <style>
+        /* Verbeterde knopstijl */
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px; /* Afstand tussen knoppen */
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>AI Mixing Tool</h1>
+    
+    <!-- Uploadsectie voor het eerste audiobestand -->
+    <fieldset>
+        <legend>Upload Audiobestanden</legend>
+        <div>
+            <label for="file1">Selecteer Song 1:</label>
+            <input type="file" id="file1" accept=".mp3, .wav" required>
+        </div>
+        <div>
+            <label for="file2">Selecteer Song 2:</label>
+            <input type="file" id="file2" accept=".mp3, .wav" required>
+        </div>
+    </fieldset>
+    
+    <!-- CAPTCHA voor het bevestigen dat de gebruiker geen robot is -->
+    <div id="captchaPopup" style="display: none;">
+        <input type="checkbox" id="robotCheckbox" required>
+        <label for="robotCheckbox">Ik ben geen robot</label>
+    </div>
+
+    <!-- Knoppen voor het mixen en stoppen van de audio -->
+    <div>
+        <button onclick="showCaptchaPopup()" aria-label="Mix Songs">Mix Songs</button>
+        <button onclick="stopAudio()" aria-label="Stop Audio">Stop</button>
+    </div>
+    
+    <!-- Audio-element om het gemixte audiobestand af te spelen -->
+    <div>
+        <audio id="mixedAudio" controls style="display: none;"></audio>
+    </div>
+    
+    <!-- Link om het gemixte audiobestand te downloaden -->
+    <div id="downloadLinkContainer" style="display: none;">
+        <a id="downloadLink" download="mixed_song.mp3">Download Mixed Song</a>
+    </div>
+
+    <script>
+        let audioContext;
+        let source;
+        let generalSettings = {
+            audioFormat: 'audio/mp3',
+            downloadFileName: 'mixed_song.mp3'
+        };
+        
+        // Functie om de captcha pop-up weer te geven
+        function showCaptchaPopup() {
+            const captchaPopup = document.getElementById('captchaPopup');
+            if (captchaPopup.style.display === 'none') {
+                captchaPopup.style.display = 'block';
+            } else {
+                mixSongs(); // Als de popup al is weergegeven, begin dan met mixen zonder de popup opnieuw te tonen
+            }
+        }
+
+        // Functie om de twee audiobestanden te mixen
+        function mixSongs() {
+            const file1Input = document.getElementById('file1');
+            const file2Input = document.getElementById('file2');
+            const mixedAudioElement = document.getElementById('mixedAudio');
+            const downloadLinkContainer = document.getElementById('downloadLinkContainer');
+            const robotCheckbox = document.getElementById('robotCheckbox');
+
+            if (!file1Input.files[0] || !file2Input.files[0]) {
+                alert('Selecteer beide audiobestanden.');
+                return;
+            }
+
+            if (!robotCheckbox.checked) {
+                alert('Bevestig dat u geen robot bent.');
+                return;
+            }
+
+            stopAudio(); // Stop het afspelen als er al iets aan de gang is
+
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+            Promise.all([
+                loadAudio(file1Input.files[0], audioContext),
+                loadAudio(file2Input.files[0], audioContext)
+            ]).then(([audioBuffer1, audioBuffer2]) => {
+                const mixedBuffer = mixAudio(audioBuffer1, audioBuffer2, audioContext);
+
+                const blob = new Blob([mixedBuffer], { type: generalSettings.audioFormat });
+                mixedAudioElement.src = URL.createObjectURL(blob);
+
+                mixedAudioElement.style.display = 'block';
+                downloadLinkContainer.style.display = 'block';
+
+                playAudio(audioContext, mixedBuffer);
+            }).catch(error => {
+                console.error('Fout bij het mixen van de audiobestanden:', error.message);
+                alert('Er is een fout opgetreden bij het mixen van de audiobestanden. Zie de console voor meer informatie.');
+            });
+        }
+
+        // Functie om een audiobestand te laden en terug te geven als een audio-buffer
+        function loadAudio(file, audioContext) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    audioContext.decodeAudioData(e.target.result, function(buffer) {
+                        resolve(buffer);
+                    }, function(err) {
+                        reject(err);
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // Functie om de twee audiobestanden te mixen
+        function mixAudio(audioBuffer1, audioBuffer2, audioContext) {
+            const maxLength = Math.max(audioBuffer1.length, audioBuffer2.length);
+            const mixedBuffer = audioContext.createBuffer(1, maxLength, audioBuffer1.sampleRate);
+
+            const channelData1 = audioBuffer1.getChannelData(0);
+            const channelData2 = audioBuffer2.getChannelData(0);
+            const mixedData = mixedBuffer.getChannelData(0);
+
+            for (let i = 0; i < maxLength; i++) {
+                mixedData[i] = (channelData1[i] + channelData2[i]) / 2;
+            }
+
+            return mixedBuffer;
+        }
+
+        // Functie om de gemixte audio af te spelen
+        function playAudio(audioContext, mixedBuffer) {
+            source = audioContext.createBufferSource();
+            source.buffer = mixedBuffer;
+            source.connect(audioContext.destination);
+            source.start(0);
+        }
+
+        // Functie om de gemixte audio te stoppen
+        function stopAudio() {
+            if (source) {
+                source.stop();
+            }
+            if (audioContext) {
+                audioContext.close();
+            }
+        }
+    </script>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website in Ontwikkeling</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+        }
+        h1 {
+            color: #ff4500;
+        }
+        p {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>Deze website is nog in ontwikkeling</h1>
+    <p>We werken eraan om deze site te verbeteren. Bedankt voor je geduld!</p>
+    <p>Voel je vrij om rond te kijken en probeer gerust uit.</p>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Company Logo</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        background-color: #f2f2f2;
+        font-family: Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+    }
+
+    .content {
+        flex: 1;
+    }
+
+    .footer {
+        text-align: center;
+        background-color: #ff7f00; /* Oranje kleur */
+        color: black; /* Zwart */
+        font-weight: bold; /* Dikgedrukt */
+        padding: 20px 0;
+    }
+</style>
+</head>
+<body>
+
+<div class="content">
+    <!-- Hier komt de inhoud van je pagina -->
+</div>
+
+<div class="footer">
+    AI MIX INC
+</div>
+
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MP3 Bestand Upload en Acties</title>
+</head>
+<body>
+
+<!-- Welkomsttekst -->
+<p>Welkom! Klik op "Voeg toe je MP3 bestand" en klik vervolgens op "Ik ben geen bot" en daarna op"Mix".</p>
+
+
+
